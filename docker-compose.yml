@@ -118,8 +118,10 @@ services:
       - services_network # Attach to the custom network
 
   # TimescaleDB: PostgreSQL database optimized for time-series data
+   # TimescaleDB: PostgreSQL database optimized for time-series data
   timescaledb:
-    image: timescale/timescaledb-ha:pg16-latest # Use TimescaleDB HA image with PostgreSQL 16
+    # Corrected image tag: Use 'pg16' instead of 'pg16-latest'
+    image: timescale/timescaledb-ha:pg16
     container_name: timescaledb
     hostname: timescaledb
     ports:

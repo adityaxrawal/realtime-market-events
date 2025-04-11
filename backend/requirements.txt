@@ -1,0 +1,17 @@
+# backend/requirements.txt
+# Python dependencies for the FastAPI backend service
+
+fastapi[standard]
+python-dotenv # For loading .env configuration files
+pydantic-settings # For loading settings using BaseSettings in Pydantic v2+
+websockets # For acting as a WebSocket client (connecting to Dhan)
+requests # For making HTTP requests (Dhan REST API)
+pandas # For reading the instrument list CSV
+
+psycopg2-binary # For PostgreSQL/TimescaleDB connection via DATABASE_URL
+
+# Official Dhan library (Optional - currently using direct requests/websockets based on provided docs)
+# dhanhq
+
+# Add other dependencies below as needed
+
