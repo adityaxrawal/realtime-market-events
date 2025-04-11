@@ -1,0 +1,173 @@
+# docker-compose.yml
+# Defines the multi-container application environment for the Financial Dashboard.
+# Includes Kafka, Zookeeper, Flink, TimescaleDB, and the FastAPI backend.
+# Run with: docker-compose up -d
+
+version: '3.8' # Specify docker-compose version
+
+# Define reusable environment variables for Kafka hosts
+x-kafka-common-env: &kafka-common-env
+  # Define the Zookeeper connection string for Kafka brokers
+  KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  # Define the security protocol map for listeners
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+  # Define how Kafka brokers talk to each other within the Docker network
+  KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+services:
+  # Zookeeper: Required by Kafka for cluster coordination
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2 # Use Confluent's Zookeeper image
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181" # Expose Zookeeper client port
+    environment:
+      # Zookeeper specific configuration
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - services_network # Attach to the custom network
+
+  # Kafka: Message broker for the data pipeline
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2 # Use Confluent's Kafka image
+    container_name: kafka
+    hostname: kafka
+    ports:
+      # Map host port 19092 to container port 9092 for external access (e.g., local producers/consumers)
+      - "19092:19092"
+      # Port 9092 is used for internal communication within the Docker network
+      # - "9092:9092" # Optional: Expose internal port if needed directly from host
+    depends_on:
+      - zookeeper # Ensure Zookeeper starts before Kafka
+    environment:
+      <<: *kafka-common-env # Inherit common Kafka environment variables
+      # Define the unique ID for this Kafka broker
+      KAFKA_BROKER_ID: 1
+      # Define listeners: INTERNAL for communication within Docker, EXTERNAL for host access
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      # Disable automatic topic creation (recommended for production, topics created manually)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # Define default number of partitions for auto-created topics (if enabled)
+      KAFKA_NUM_PARTITIONS: 3
+      # Define default replication factor for auto-created topics (must not exceed broker count)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Set to 1 for single-node setup
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 # Set to 1 for single-node setup
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 # Set to 1 for single-node setup
+    volumes:
+      # Mount volume for Kafka data persistence
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - services_network # Attach to the custom network
+
+  # Flink Job Manager: Coordinates Flink job execution
+  flink-jobmanager:
+    image: flink:1.17 # Use an official Flink image (adjust tag as needed)
+    container_name: flink-jobmanager
+    hostname: flink-jobmanager
+    ports:
+      - "8081:8081" # Expose Flink Web UI port
+    command: jobmanager # Start as jobmanager
+    environment:
+      # Define the address for the JobManager RPC communication
+      JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      # Enable checkpointing to the filesystem (adjust path as needed)
+      FLINK_PROPERTIES: |
+        state.backend: filesystem
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        execution.checkpointing.interval: 1min
+    volumes:
+      # Mount volume for Flink checkpoints and savepoints
+      - flink_checkpoints:/opt/flink/checkpoints
+      # Mount volume for Flink job JARs/scripts (add your job files here)
+      - flink_jobs:/opt/flink/usrlib
+      # Mount volume for Flink connector JARs (place Kafka, JDBC connectors here)
+      # Download connectors (e.g., flink-sql-connector-kafka, flink-connector-jdbc)
+      # and place them in a local './flink-connectors' directory before starting.
+      - ./flink-connectors:/opt/flink/lib
+    networks:
+      - services_network # Attach to the custom network
+    depends_on:
+      - kafka # Ensure Kafka is available
+
+  # Flink Task Manager: Executes Flink tasks
+  flink-taskmanager:
+    image: flink:1.17 # Use the same Flink image as the jobmanager
+    container_name: flink-taskmanager
+    hostname: flink-taskmanager
+    depends_on:
+      - flink-jobmanager # Ensure JobManager starts first
+    command: taskmanager # Start as taskmanager
+    environment:
+      # Define the address for the JobManager RPC communication
+      JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      # Enable checkpointing (same as jobmanager)
+      FLINK_PROPERTIES: |
+        state.backend: filesystem
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        execution.checkpointing.interval: 1min
+        # Define the number of task slots (parallelism units) per TaskManager
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      # Mount volumes similar to jobmanager for access to libraries/checkpoints if needed directly
+      - flink_checkpoints:/opt/flink/checkpoints
+      - flink_jobs:/opt/flink/usrlib
+      - ./flink-connectors:/opt/flink/lib
+    networks:
+      - services_network # Attach to the custom network
+
+  # TimescaleDB: PostgreSQL database optimized for time-series data
+  timescaledb:
+    image: timescale/timescaledb-ha:pg16-latest # Use TimescaleDB HA image with PostgreSQL 16
+    container_name: timescaledb
+    hostname: timescaledb
+    ports:
+      - "5432:5432" # Expose PostgreSQL default port
+    environment:
+      # Set the password for the default 'postgres' user
+      POSTGRES_PASSWORD: your_strong_password # !!! CHANGE THIS PASSWORD !!!
+      # Optional: Set default database name and user
+      # POSTGRES_DB: financial_data
+      # POSTGRES_USER: db_user
+    volumes:
+      # Mount volume for database data persistence
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - services_network # Attach to the custom network
+
+  # Backend Service (FastAPI) - Placeholder Definition
+  # Build this service from a Dockerfile in the './backend' directory
+  backend:
+    build: ./backend # Path to the directory containing the backend Dockerfile
+    container_name: backend-api
+    hostname: backend-api
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000 (where Uvicorn runs)
+    volumes:
+      # Mount the backend source code for live reloading during development
+      - ./backend:/app
+    environment:
+      # Pass environment variables needed by the backend
+      # Example: DATABASE_URL: postgresql://db_user:your_strong_password@timescaledb:5432/financial_data
+      # Example: KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Load sensitive variables from a .env file (ensure .env is in .gitignore)
+      - .env
+    depends_on:
+      - kafka
+      - timescaledb # Ensure database and Kafka are ready before backend starts
+    networks:
+      - services_network # Attach to the custom network
+
+# Define the custom network for inter-service communication
+networks:
+  services_network:
+    driver: bridge # Use the default bridge driver
+
+# Define named volumes for data persistence
+volumes:
+  kafka_data:
+  timescale_data:
+  flink_checkpoints:
+  flink_jobs:
+

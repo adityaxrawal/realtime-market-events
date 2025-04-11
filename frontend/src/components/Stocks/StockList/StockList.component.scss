@@ -1,0 +1,69 @@
+.stock-menu {
+  font-family: "Segoe UI", sans-serif;
+  font-size: 14px;
+  max-width: 800px;
+  overflow-x: auto;
+  overflow-y: scroll;
+  background-color: #0f0f0f;
+  border-radius: 4px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.stock-row {
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid #333;
+
+  &.selected,
+  &:hover {
+    background-color: #2e2e2e;
+    border-right: 1px solid #2e2e2e;
+  }
+}
+
+.stock-cell {
+  width: 150px;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative; // For resizable handle
+
+  &.symbol {
+    text-align: start;
+  }
+
+  &.stock-detail {
+    text-align: end;
+  }
+
+  &.header {
+    border-right: 1px solid #0f0f0f;
+    color: #707070;
+
+    .stock-header:hover & {
+      border-right: 1px solid #515151;
+    }
+  }
+}
+
+.stock-header {
+  position: sticky;
+  top: 0;
+  background-color: #0f0f0f;
+  z-index: 2;
+}
+
+/* Resizable handle */
+.ui-resizable-e {
+  width: 5px;
+  right: 0;
+  top: 0;
+  height: 100%;
+  cursor: ew-resize;
+  position: absolute;
+}
