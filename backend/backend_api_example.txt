@@ -1,0 +1,174 @@
+Backend API Usage ExamplesAssuming your backend is running locally on port 8000. The base URL for REST API calls is `http://localhost:8000`.
+
+### 1. Health Check (Optional)
+
+Verify if the backend server is running.
+
+```bash
+curl -X GET "http://localhost:8000/health"
+```
+
+Expected Response: `{"status":"ok"}`
+
+### 2. Get Nifty 50 Stock List
+
+Fetch the initial list of Nifty 50 stocks (including names, symbols, and security IDs).
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/stocks/nifty50-list"
+```
+
+Expected Response: A JSON object containing a list of stocks, e.g.:
+```json
+{
+  "stocks": [
+    {
+      "symbol": "RELIANCE",
+      "name": "Reliance Industries Ltd.",
+      "industry": "Oil Gas & Consumable Fuels",
+      "isin_code": "INE002A01018",
+      "series": "EQ",
+      "security_id": "2885",
+      "exchange": "NSE",
+      "segment": "EQUITY",
+      "instrument_type": "EQUITY"
+    },
+    // ... other stocks
+  ]
+}
+```
+
+### 3. Get Historical Data (REST API)
+
+Fetch historical OHLCV data for a specific stock using its Dhan Security ID.
+
+**Example: Daily Data for Reliance (ID: 2885)**
+
+```bash
+# Replace dates as needed
+curl -X GET "http://localhost:8000/api/v1/stocks/historical/2885?exchange_segment=NSE_EQ&instrument_type=EQUITY&from_date=2024-03-01&to_date=2024-04-01&interval=D"
+```
+
+**Example: 5-Minute Data for TCS (ID: 11536)**
+
+```bash
+# Replace dates as needed (max 90 days for intraday)
+curl -X GET "http://localhost:8000/api/v1/stocks/historical/11536?exchange_segment=NSE_EQ&instrument_type=EQUITY&from_date=2024-04-10&to_date=2024-04-11&interval=5"
+```
+
+Expected Response (Structure):
+```json
+{
+  "symbol": "RELIANCE", // Or TCS etc.
+  "security_id": "2885", // Or 11536 etc.
+  "data": [
+    {
+      "timestamp": 1709251200, // Example epoch timestamp
+      "open": 2950.0,
+      "high": 2980.5,
+      "low": 2945.0,
+      "close": 2975.8,
+      "volume": 5000000
+    },
+    // ... other data points
+  ]
+}
+```
+
+### 4. Live Data Feed (WebSocket)
+
+This is not a cURL command, but rather how a WebSocket client (in your frontend JavaScript) would connect and interact.
+
+**Connection URL:** `ws://localhost:8000/ws/stocks`
+
+**Messages Sent by Frontend:**
+
+* **To Subscribe to Live OHLC (Quote data) for a selected stock (e.g., Wipro ID: 3787):**
+    ```json
+    {
+      "action": "subscribe_ohlc",
+      "params": {
+        "security_id": "3787",
+        "exchange_segment": "NSE_EQ"
+      }
+    }
+    ```
+* **To Unsubscribe from Live OHLC for that stock:**
+    ```json
+    {
+      "action": "unsubscribe_ohlc",
+      "params": {
+        "security_id": "3787",
+        "exchange_segment": "NSE_EQ"
+      }
+    }
+    ```
+
+**Messages Received by Frontend:**
+
+* **Initial Welcome Message:**
+    ```json
+    "Welcome [Client IP]:[Port]! You are connected."
+    ```
+* **Ticker Update (for all Nifty 50 stocks):**
+    ```json
+    {
+      "type": "ticker_update",
+      "payload": {
+        "symbol": "RELIANCE",
+        "ltp": 2985.50,
+        "ltt": 1712991800, // Example epoch timestamp
+        "change": 10.20,
+        "percent_change": 0.34
+      }
+    }
+    ```
+* **Quote Update (Live OHLC for subscribed stock):**
+    ```json
+    {
+      "type": "quote_update",
+      "payload": {
+        "symbol": "WIPRO",
+        "ltp": 450.75,
+        "ltt": 1712991805,
+        "volume": 1234567,
+        "open": 448.00,
+        "high": 451.50,
+        "low": 447.80,
+        "close": null, // Close is often null/0 during market hours
+        "atp": 449.95,
+        "total_buy_qty": 50000,
+        "total_sell_qty": 65000,
+        "prev_close": 445.20
+      }
+    }
+    ```
+* **Subscription Confirmation:**
+    ```json
+    {
+      "type": "subscribed",
+      "payload": {
+        "security_id": "3787",
+        "dataType": "QUOTE"
+      }
+    }
+    ```
+* **Unsubscription Confirmation:**
+    ```json
+    {
+      "type": "unsubscribed",
+      "payload": {
+        "security_id": "3787",
+        "dataType": "QUOTE"
+      }
+    }
+    ```
+* **Error Message:**
+    ```json
+    {
+      "type": "error",
+      "payload": {
+        "message": "Some error description here"
+      }
+    }
+    ```

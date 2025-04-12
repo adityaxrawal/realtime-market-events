@@ -1,0 +1,27 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: FastAPI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        // Arguments to pass to uvicorn
+        "main:app", // Path to your FastAPI app instance (main.py file, app variable)
+        "--host",
+        "0.0.0.0", // Host to bind to
+        "--port",
+        "8000" // Port to run on (should match your app)
+        // "--reload"                // Omit --reload for more stable debugging, especially with background tasks
+      ],
+      "jinja": true,
+      "cwd": "${workspaceFolder}/backend", // Set current working directory to the backend folder
+      "envFile": "${workspaceFolder}/.env", // Load environment variables from your .env file
+      "console": "integratedTerminal" // Show output in the VS Code integrated terminal
+    }
+  ]
+}

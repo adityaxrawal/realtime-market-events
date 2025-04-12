@@ -6,11 +6,11 @@ python-dotenv # For loading .env configuration files
 pydantic-settings # For loading settings using BaseSettings in Pydantic v2+
 websockets # For acting as a WebSocket client (connecting to Dhan)
 requests # For making HTTP requests (Dhan REST API)
-pandas # For reading the instrument list CSV
+# pandas # Removed - no longer needed for CSV parsing
 
 psycopg2-binary # For PostgreSQL/TimescaleDB connection via DATABASE_URL
 
-# Official Dhan library (Optional - currently using direct requests/websockets based on provided docs)
+# Official Dhan library (Optional - currently using direct requests/websockets)
 # dhanhq
 
 # Add other dependencies below as needed
