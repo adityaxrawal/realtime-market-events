@@ -1,26 +1,26 @@
 # backend/services/dhan_service.py
 # Service layer for interacting with the DhanHQ API and local data.
+# Added function to query analysis results from database.
 
 import logging
 import requests
-# import pandas as pd # No longer needed
-# import io # No longer needed
-import json # Import json
-import os # Import os
+import json
+import os
+import psycopg2 # Added for database connection
+import psycopg2.extras # Added for DictCursor
+from urllib.parse import urlparse # Added for parsing DATABASE_URL
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timedelta
 
 from core.config import settings
-# Import StockListItem with updated fields if necessary
-from models.stock import StockListItem, HistoricalDataPoint
+# Import models including the new AnalysisOutcome
+from models.stock import StockListItem, HistoricalDataPoint, AnalysisOutcome
 
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
-# DHAN_INSTRUMENT_CSV_URL = "https://images.dhan.co/api-data/api-scrip-master.csv" # Removed
 DHAN_HISTORICAL_API_URL = "https://api.dhan.co/v2/charts/historical"
 DHAN_INTRADAY_API_URL = "https://api.dhan.co/v2/charts/intraday"
-# --- FIX: Correct path assuming 'data' folder is sibling to 'core', 'services' etc. ---
 LOCAL_NIFTY50_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "nifty50_list.json")
 
 # Cache for the processed Nifty 50 list
@@ -34,11 +34,8 @@ def get_dhan_headers() -> Dict[str, str]:
         raise ValueError("DHAN_ACCESS_TOKEN is not configured.")
     return {"Accept": "application/json", "Content-Type": "application/json", "access-token": settings.DHAN_ACCESS_TOKEN}
 
-# --- Removed load_instrument_data() function ---
-
 def load_local_nifty50_data() -> List[Dict[str, Any]]:
     """Loads the Nifty 50 stock list from the local JSON file."""
-    # (Function remains the same as before)
     logger.info(f"Loading local Nifty 50 list from: {LOCAL_NIFTY50_JSON_PATH}")
     try:
         with open(LOCAL_NIFTY50_JSON_PATH, 'r', encoding='utf-8') as f: data = json.load(f)
@@ -71,7 +68,6 @@ async def get_nifty50_constituent_list() -> List[StockListItem]:
         stock_list = []
         skipped_count = 0
         for item in local_data:
-            # --- FIX: Use keys from the provided JSON data ---
             symbol = item.get("Symbol")
             security_id_raw = item.get("SEM_SMST_SECURITY_ID") # Get the ID
 
@@ -123,47 +119,155 @@ async def get_historical_data(
     interval: str
 ) -> List[HistoricalDataPoint]:
     """Fetches historical OHLCV data from Dhan REST API."""
-    # (Function body remains the same as previous version)
     logger.info(f"Fetching historical data for SecID {security_id} ({interval}) from {from_date} to {to_date}")
     try: headers = get_dhan_headers()
     except ValueError as e: logger.error(f"Cannot fetch historical data: {e}"); return []
-    dhan_exchange_segment = exchange_segment.replace("_", " ")
-    dhan_instrument = instrument_type
+
+    # Map backend segment format (e.g., NSE_EQ) to Dhan format (e.g., NSE EQ)
+    dhan_exchange_segment = exchange_segment.replace("_", " ") if exchange_segment else "NSE EQ"
+    dhan_instrument = instrument_type or "EQUITY" # Default to EQUITY if not provided
+
     from_date_str = from_date.strftime("%Y-%m-%d"); to_date_str = to_date.strftime("%Y-%m-%d")
-    payload = {"securityId": security_id, "exchangeSegment": dhan_exchange_segment, "instrument": dhan_instrument, "fromDate": from_date_str, "toDate": to_date_str}
-    if interval == 'D': api_url = DHAN_HISTORICAL_API_URL
+
+    payload = {
+        "securityId": security_id,
+        "exchangeSegment": dhan_exchange_segment,
+        "instrument": dhan_instrument,
+        "fromDate": from_date_str,
+        "toDate": to_date_str
+    }
+
+    # Determine API URL and add interval if needed
+    if interval == 'D':
+        api_url = DHAN_HISTORICAL_API_URL
     elif interval.isdigit():
-        api_url = DHAN_INTRADAY_API_URL; payload["interval"] = interval
+        api_url = DHAN_INTRADAY_API_URL
+        payload["interval"] = interval
+        # Apply 90-day limit for intraday data as per Dhan docs
         date_diff = to_date - from_date
         if date_diff > timedelta(days=90):
-             logger.warning(f"Intraday request for {security_id} > 90 days. Fetching only first 90.")
+             logger.warning(f"Intraday request for {security_id} exceeds 90 days. Fetching only first 90 days from {from_date_str}.")
              payload["toDate"] = (from_date + timedelta(days=90)).strftime("%Y-%m-%d")
-    else: raise ValueError(f"Invalid interval: {interval}")
-    logger.debug(f"Calling Dhan Historical API: {api_url} with payload: {payload}")
+    else:
+        raise ValueError(f"Invalid interval provided: {interval}")
+
+    logger.debug(f"Calling Dhan Historical/Intraday API: {api_url} with payload: {payload}")
     try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status(); data = response.json()
-        if not data or 'open' not in data or not isinstance(data['open'], list): logger.warning(f"Unexpected historical data format for {security_id}. Response: {str(data)[:500]}"); return []
-        required_keys = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
-        if not all(key in data and isinstance(data[key], list) for key in required_keys): logger.warning(f"Missing arrays in historical data for {security_id}. Keys: {list(data.keys())}"); return []
-        try:
-             num_candles = len(data['open'])
-             if not all(len(data[key]) == num_candles for key in required_keys):
-                  min_len = min(len(data[key]) for key in required_keys); logger.warning(f"OHLCVT array length mismatch for {security_id}. Processing {min_len} candles.")
-                  if min_len == 0: return []
-                  num_candles = min_len; data = {k: v[:num_candles] for k, v in data.items() if k in required_keys}
-        except Exception as len_err: logger.error(f"Error checking array lengths for {security_id}: {len_err}"); return []
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30) # Increased timeout
+        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+        data = response.json()
+
+        # Validate response structure (adjust based on actual Dhan response)
+        if not data or 'open' not in data or not isinstance(data['open'], list):
+            logger.warning(f"Unexpected historical data format for {security_id}. Response: {str(data)[:500]}")
+            return []
+
+        required_keys = ['open', 'high', 'low', 'close', 'volume', 'start_Time'] # Use start_Time based on docs
+        if not all(key in data and isinstance(data[key], list) for key in required_keys):
+            logger.warning(f"Missing arrays in historical data for {security_id}. Keys: {list(data.keys())}")
+            return []
+
+        # Check for length consistency
+        num_candles = len(data['open'])
+        if not all(len(data[key]) == num_candles for key in required_keys):
+            min_len = min(len(data.get(key, [])) for key in required_keys)
+            logger.warning(f"OHLCVT array length mismatch for {security_id}. Processing {min_len} candles.")
+            if min_len == 0: return []
+            # Trim arrays to the minimum length found
+            data = {k: v[:min_len] for k, v in data.items() if k in required_keys}
+            num_candles = min_len
+
+        # Convert to HistoricalDataPoint model
         historical_points = []
         for i in range(num_candles):
              try:
-                  ts=int(data['timestamp'][i]);o=float(data['open'][i]);h=float(data['high'][i]);l=float(data['low'][i]);c=float(data['close'][i]);v=int(data['volume'][i])
+                  # Use 'start_Time' for timestamp based on Dhan docs
+                  ts = int(data['start_Time'][i])
+                  o = float(data['open'][i])
+                  h = float(data['high'][i])
+                  l = float(data['low'][i])
+                  c = float(data['close'][i])
+                  v = int(data['volume'][i])
                   historical_points.append(HistoricalDataPoint(timestamp=ts, open=o, high=h, low=l, close=c, volume=v))
-             except (ValueError, TypeError, IndexError) as item_err: logger.warning(f"Skipping invalid data point {i} for {security_id}: {item_err}."); continue
-        logger.info(f"Processed {len(historical_points)} historical points for {security_id}"); return historical_points
-    except requests.exceptions.Timeout: logger.error(f"Timeout fetching historical data for {security_id}"); return []
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Request error fetching historical data for {security_id}: {e}", exc_info=False)
-        if e.response is not None: logger.error(f"Response status: {e.response.status_code}, Body: {e.response.text[:500]}")
+             except (ValueError, TypeError, IndexError) as item_err:
+                  logger.warning(f"Skipping invalid data point {i} for {security_id}: {item_err}. Data: { {k: data[k][i] for k in required_keys if i < len(data.get(k,[]))} }")
+                  continue
+
+        logger.info(f"Processed {len(historical_points)} historical points for {security_id}")
+        return historical_points
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout fetching historical data for {security_id} from {api_url}")
         return []
-    except Exception as e: logger.error(f"Error processing historical data for {security_id}: {e}", exc_info=True); return []
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error fetching historical data for {security_id} from {api_url}: {e}", exc_info=False)
+        if e.response is not None:
+            logger.error(f"Response status: {e.response.status_code}, Body: {e.response.text[:500]}")
+        return []
+    except Exception as e:
+        logger.error(f"Error processing historical data for {security_id}: {e}", exc_info=True)
+        return []
+
+
+# --- ADDED: Function to get latest analysis results ---
+async def get_latest_analysis(stock_symbol: str) -> Optional[AnalysisOutcome]:
+    """
+    Fetches the latest analysis results from the TimescaleDB database
+    for a given stock symbol.
+    """
+    logger.info(f"Fetching latest analysis for symbol: {stock_symbol}")
+    conn = None
+    cursor = None # Initialize cursor to None
+    try:
+        # Parse DATABASE_URL (basic example, consider more robust parsing)
+        result = urlparse(settings.DATABASE_URL)
+        username = result.username
+        password = result.password
+        database = result.path[1:] # Remove leading '/'
+        hostname = result.hostname
+        port = result.port
+
+        conn = psycopg2.connect(
+            dbname=database,
+            user=username,
+            password=password,
+            host=hostname,
+            port=port
+        )
+        # Use DictCursor to get results as dictionaries
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        # Query for the most recent entry for the given stock symbol
+        # Assumes the table name is 'market_analysis_results' as per updated schema
+        query = """
+            SELECT * FROM market_analysis_results
+            WHERE stock_symbol = %s
+            ORDER BY time DESC
+            LIMIT 1;
+        """
+        cursor.execute(query, (stock_symbol,))
+        result_row = cursor.fetchone()
+
+        if result_row:
+            logger.info(f"Found analysis data for {stock_symbol}")
+            # Convert row dictionary to AnalysisOutcome model
+            # Pydantic v2 uses from_attributes=True in model Config
+            analysis_data = AnalysisOutcome.model_validate(result_row) # Use model_validate for Pydantic v2
+            return analysis_data
+        else:
+            logger.info(f"No analysis data found for {stock_symbol}")
+            return None
+
+    except psycopg2.Error as db_err:
+        logger.error(f"Database error fetching analysis for {stock_symbol}: {db_err}")
+        return None # Or raise a custom exception
+    except Exception as e:
+        logger.error(f"Unexpected error fetching analysis for {stock_symbol}: {e}", exc_info=True)
+        return None # Or raise
+    finally:
+        # Ensure cursor and connection are closed
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
