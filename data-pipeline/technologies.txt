@@ -1,0 +1,46 @@
+# Technologies Used in Data Pipeline (Phases 3 & 4)
+
+This document outlines the key technologies used for data ingestion and real-time processing in the Financial Dashboard project, focusing on free-tier options as requested.
+
+1.  **Apache Kafka:**
+    * **Purpose:** Acts as a central, distributed message broker for decoupling data producers (news, Reddit) from consumers (Flink). Handles incoming raw data streams and potentially outgoing processed streams.
+    * **Setup:** Defined as a service in `docker-compose.yml`. Topics are created manually using Kafka CLI tools.
+    * **Relevant Files:** `docker-compose.yml`, Kafka CLI commands (in documentation).
+    * **Library:** `kafka-python` (used in Python producers).
+
+2.  **Python (Producers):**
+    * **Purpose:** Used to write standalone scripts that fetch data from external APIs and publish it to Kafka topics.
+    * **Libraries:**
+        * `requests`: For making HTTP calls to the Finnhub API.
+        * `praw`: Python Reddit API Wrapper for interacting with the Reddit API.
+        * `kafka-python`: To produce messages to Kafka.
+        * `python-dotenv`: To load API keys and configurations securely.
+    * **Relevant Files:** `data-pipeline/producers/news_producer.py`, `data-pipeline/producers/reddit_producer.py`, `data-pipeline/requirements.txt`, `.env`.
+
+3.  **Apache Flink (Python Table/DataStream API):**
+    * **Purpose:** A stream processing framework used for real-time analysis of data flowing through Kafka. Performs sentiment analysis. Market regime detection is limited due to data constraints.
+    * **API:** Python Table API (primarily used for ease of connectors and SQL-like operations) and DataStream API (underlying execution, UDFs).
+    * **Libraries/Connectors (JARs required in Flink's /lib folder):**
+        * `flink-sql-connector-kafka`: To read from and write to Kafka topics.
+        * `flink-connector-jdbc`: To write processed results to TimescaleDB.
+    * **NLP Library:** `nltk` (specifically VADER lexicon) for sentiment analysis.
+    * **Relevant Files:** `data-pipeline/flink-jobs/sentiment_analysis_job.py`, `docker-compose.yml` (Flink service definitions), `flink-connectors/` (directory for JARs).
+
+4.  **TimescaleDB (PostgreSQL Extension):**
+    * **Purpose:** A time-series database used to store the processed sentiment and market regime data sinked from Flink. Optimized for time-based queries needed by the backend API.
+    * **Setup:** Defined as a service in `docker-compose.yml`. Schema is defined and applied using SQL commands.
+    * **Relevant Files:** `docker-compose.yml`, `data-pipeline/schema.sql`.
+
+5.  **Finnhub API (Free Tier):**
+    * **Purpose:** Used as the **free** source for fetching general market news headlines and summaries.
+    * **Relevant Files:** `data-pipeline/producers/news_producer.py`, `.env` (for API key).
+
+6.  **Reddit API (Free Tier via PRAW):**
+    * **Purpose:** Used as the **free** source for fetching posts from relevant financial subreddits.
+    * **Relevant Files:** `data-pipeline/producers/reddit_producer.py`, `.env` (for API credentials).
+
+**Limitations Imposed by "Free API" Constraint:**
+
+* **Twitter Data:** No Twitter producer due to API costs.
+* **Market Regime Detection:** Severely limited as it requires real-time price/volume data, typically not available for free at the required granularity. The implementation is a placeholder.
+* **News Data Richness:** Free news APIs might have limitations on historical depth, filtering capabilities, or update frequency compared to paid alternatives.

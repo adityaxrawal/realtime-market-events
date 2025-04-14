@@ -1,0 +1,17 @@
+# data-pipeline/requirements.txt
+# Python dependencies for the data pipeline (producers and Flink job)
+
+# For Producers
+kafka-python >= 2.0.0 # Kafka client
+requests     >= 2.25.0 # For Finnhub API calls
+python-dotenv >= 0.15.0 # For loading .env files
+praw         >= 7.0.0  # Python Reddit API Wrapper
+
+# For Flink Job (Sentiment Analysis)
+nltk         >= 3.5   # For VADER sentiment analysis
+
+# Flink itself (usually installed in the Flink environment, not via pip directly in job code)
+# apache-flink >= 1.17.0
+
+# Note: Ensure corresponding Flink connector JARs (Kafka, JDBC) are
+# placed in the Flink cluster's /lib directory (e.g., via docker-compose volume mount).
