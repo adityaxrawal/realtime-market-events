@@ -8,7 +8,13 @@
   border-radius: 4px;
 
   &::-webkit-scrollbar {
-    display: none;
+    background-color: #0f0f0f;
+    width: 10px;
+  }
+  &::-webkit-scrollbar-thumb{
+    background-color: #2e2e2e;
+    border-radius: 10rem;
+    border: 2px solid #0f0f0f;
   }
 }
 

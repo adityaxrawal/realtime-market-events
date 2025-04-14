@@ -1,3 +1,72 @@
-.sentiment-container{
-    
+/*
+File: Finance Project/frontend/src/components/Sentiment/Sentiment.component.css
+Description: Styles for the Sentiment analysis component.
+*/
+
+.sentiment-container {
+    padding: 15px; /* Add padding inside the container */
+    height: 100%; /* Ensure it takes full height of its parent */
+    box-sizing: border-box; /* Include padding in height calculation */
+    color: #DBDBDB; /* Default text color */
+    display: flex;
+    flex-direction: column; /* Stack title and content vertically */
+    overflow: hidden; /* Prevent content from spilling out */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                 sans-serif; /* Consistent font */
+}
+
+/* Style for the main title */
+.sentiment-container h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #cccccc; /* Slightly lighter grey for title */
+    border-bottom: 1px solid #444444; /* Separator line */
+    padding-bottom: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+/* Container for the actual analysis content */
+.analysis-content {
+    flex-grow: 1; /* Allow content area to fill remaining space */
+    overflow-y: auto; /* Enable vertical scrolling if content exceeds height */
+}
+
+/* Style for sub-section titles (Sentiment, Market Regime) */
+.sentiment-section h5,
+.regime-section h5 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: #aaaaaa; /* Dimmer color for sub-titles */
+    font-size: 0.95em;
+    font-weight: 500;
+    text-transform: uppercase; /* Uppercase for distinction */
+    letter-spacing: 0.5px;
+}
+
+/* Margin between analysis sections */
+.sentiment-section {
+    margin-bottom: 15px;
+}
+
+/* General paragraph styling within the container */
+.sentiment-container p {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+/* Style for placeholder/informational messages */
+.placeholder-message,
+.loading-message {
+    color: #777777; /* Grey color for placeholders */
+    font-style: italic;
+}
+
+/* Style for error messages */
+.error-message {
+    color: #ef5350; /* Red color for errors */
+    font-weight: bold;
 }

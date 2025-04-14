@@ -1,0 +1,48 @@
+/*
+File: Finance Project/frontend/src/components/Chart/Chart.component.css
+Description: Styles for the Chart component container and messages.
+*/
+
+.chart-container {
+    /* Ensure the container fills its parent (the resizable left panel) */
+    width: 100%;
+    height: 100%;
+    position: relative; /* Needed for absolute positioning of overlay messages */
+    background-color: #000000; /* Match chart background for seamless look */
+    overflow: hidden; /* Hide any potential overflow */
+}
+
+/* Styling for messages overlaid on the chart (loading, error, placeholder) */
+.chart-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center the message */
+    color: #777777; /* Default grey color for messages */
+    font-size: 1.1em; /* Slightly larger font */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                 sans-serif; /* Consistent font */
+    z-index: 10; /* Ensure message is above the chart canvas */
+    pointer-events: none; /* Prevent message from interfering with chart interactions */
+    text-align: center;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.5); /* Optional: slight background for readability */
+    border-radius: 4px;
+}
+
+/* Specific style for error messages */
+.chart-message.error {
+    color: #ef5350; /* Red color for errors */
+    font-weight: bold;
+}
+
+/* Specific style for loading messages */
+.chart-message.loading {
+    color: #cccccc; /* Lighter grey for loading */
+}
+
+/* Specific style for placeholder messages */
+.chart-message.placeholder {
+    color: #999999; /* Slightly darker grey for placeholder */
+}

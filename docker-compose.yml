@@ -3,11 +3,11 @@
 # Includes Kafka, Zookeeper, Flink, TimescaleDB, and the FastAPI backend.
 # Run with: docker-compose up -d
 
-version: '3.8' # Specify docker-compose version
+version: "3.8" # Specify docker-compose version
 
 # Define reusable environment variables for Kafka hosts
-x-kafka-common-env: &kafka-common-env
-  # Define the Zookeeper connection string for Kafka brokers
+x-kafka-common-env:
+  &kafka-common-env # Define the Zookeeper connection string for Kafka brokers
   KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
   # Define the security protocol map for listeners
   KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
@@ -118,7 +118,7 @@ services:
       - services_network # Attach to the custom network
 
   # TimescaleDB: PostgreSQL database optimized for time-series data
-   # TimescaleDB: PostgreSQL database optimized for time-series data
+  # TimescaleDB: PostgreSQL database optimized for time-series data
   timescaledb:
     # Corrected image tag: Use 'pg16' instead of 'pg16-latest'
     image: timescale/timescaledb-ha:pg16
@@ -161,6 +161,27 @@ services:
     networks:
       - services_network # Attach to the custom network
 
+  frontend:
+    build: ./frontend # Path to the frontend Dockerfile directory
+    container_name: frontend-app
+    hostname: frontend-app
+    ports:
+      # If using nginx (production build), map to 80
+      - "80:80"
+      # If using `npm start` in Dockerfile (development), map to 3000
+      # - "3000:3000"
+    volumes:
+      # Mount frontend source code for development live reloading (if using npm start)
+      # For production builds served by nginx, this volume mount is usually not needed
+      # after the initial build, unless you want to manually copy build artifacts.
+      - ./frontend:/app
+      # Prevent node_modules from being overwritten by the host mount in dev
+      - /app/node_modules
+    networks:
+      - services_network
+    depends_on:
+      - backend # Optional: if frontend needs backend during build or proxies to it
+
 # Define the custom network for inter-service communication
 networks:
   services_network:
@@ -172,4 +193,3 @@ volumes:
   timescale_data:
   flink_checkpoints:
   flink_jobs:
-
