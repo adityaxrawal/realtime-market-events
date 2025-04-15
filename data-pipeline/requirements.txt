@@ -7,11 +7,19 @@ requests     >= 2.25.0 # For Finnhub API calls
 python-dotenv >= 0.15.0 # For loading .env files
 praw         >= 7.0.0  # Python Reddit API Wrapper
 
-# For Flink Job (Sentiment Analysis)
+# For Flink Job (Enhanced Analysis)
+apache-flink >= 1.17.0 # Specify Flink version used for development/testing
 nltk         >= 3.5   # For VADER sentiment analysis
+pandas       >= 1.3.0 # For data manipulation and rolling calculations
+numpy        >= 1.20.0 # For numerical operations (std dev)
 
-# Flink itself (usually installed in the Flink environment, not via pip directly in job code)
-# apache-flink >= 1.17.0
+# NOTE: TA-Lib is NOT directly imported but might be desired for more complex indicators.
+# If needed, it must be installed separately in the Flink execution environment (e.g., Docker image).
+# ta-lib
 
 # Note: Ensure corresponding Flink connector JARs (Kafka, JDBC) are
 # placed in the Flink cluster's /lib directory (e.g., via docker-compose volume mount).
+# Required JARs:
+# - flink-sql-connector-kafka-*.jar (Check Flink version compatibility)
+# - flink-connector-jdbc-*.jar (Check Flink version compatibility)
+# - postgresql-*.jar (JDBC driver for PostgreSQL/TimescaleDB)

@@ -1,0 +1,15 @@
+# Environment and configuration
+.env
+.env.*
+
+# Python virtual environment
+.venv/
+
+# VS Code settings
+.vscode/
+
+
+# Office/Project documents (sensitive or not needed in repo)
+Finance Dashboard Development Roadmap_.docx
+Financial Analytics Dashboard_ A Comprehensive Roadmap (v2).docx
+.dhanAPIsdocs
